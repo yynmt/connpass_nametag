@@ -1,6 +1,5 @@
 import os
 import csv
-import time
 import qrcode
 import requests
 from bs4 import BeautifulSoup
@@ -9,12 +8,15 @@ from PIL import Image, ImageFont, ImageDraw
 
 ICON_DIR_PATH = str(Path(__name__).parent / 'icon')
 NAME_TAG_DIR_PATH = str(Path(__name__).parent / 'name_tag')
+CONCAT_DIR_PATH = str(Path(__name__).parent / 'concat')
 Path(ICON_DIR_PATH).mkdir(exist_ok=True)
 Path(NAME_TAG_DIR_PATH).mkdir(exist_ok=True)
+Path(CONCAT_DIR_PATH).mkdir(exist_ok=True)
 
 CSV_PATH = r'data.csv'
 BASE_NAME_TAG_PATH = 'base.png'
 DEFAULT_ICON_PATH = 'default_icon.png'
+DUMMY_IMG_PATH = 'base.png'
 
 
 class NameTag:
@@ -144,7 +146,7 @@ def gen_name_tag(nt):
 
     # 受付番号の文字入れ
     draw_dn_img.text(
-        (30, base_img_size[1]-20),
+        (30, base_img_size[1] - 20),
         nt.rcpt_number,
         fill='black',
         font=ImageFont.truetype(font, 12),
@@ -163,7 +165,8 @@ def gen_name_tag(nt):
     # リサイズ
     icon_img = icon_img.resize((200, 200))
     # ベースと同じサイズに拡張
-    icon_img = add_margin(icon_img, 0, base_img_size[0]-icon_img.size[0], base_img_size[1]-icon_img.size[1], 0, (0, 0, 0, 0))
+    icon_img = add_margin(icon_img, 0, base_img_size[0] - icon_img.size[0], base_img_size[1] - icon_img.size[1], 0,
+                          (0, 0, 0, 0))
 
     # QRコード
     qr = qrcode.QRCode(box_size=2)
@@ -210,10 +213,88 @@ def expand2square(pil_img, background_color):
         return result
 
 
+def pack_nametag(part_dict):
+    # dictからvalueのリストにして表示名でソート
+    part_list = list(part_dict.values())
+    part_list.sort(key=lambda x: x.display_name)
+    # 書き出し画像用カウンタ
+    cnt = 0
+    # 余白用dummy画像
+    dummy_im = Image.open(DUMMY_IMG_PATH)
+
+    it = iter(part_list)
+    while True:
+        im0_path = im1_path = im2_path = im3_path = im4_path = None
+        im5_path = im6_path = im7_path = im8_path = im9_path = None
+        try:
+            im0_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im1_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im2_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im3_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im4_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im5_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im6_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im7_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im8_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im9_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+        except StopIteration:
+            break
+        finally:
+            im0 = Image.open(im0_path) if im0_path and Path(im0_path).is_file() else dummy_im
+            im1 = Image.open(im1_path) if im1_path and Path(im1_path).is_file() else dummy_im
+            im2 = Image.open(im2_path) if im2_path and Path(im2_path).is_file() else dummy_im
+            im3 = Image.open(im3_path) if im3_path and Path(im3_path).is_file() else dummy_im
+            im4 = Image.open(im4_path) if im4_path and Path(im4_path).is_file() else dummy_im
+            im5 = Image.open(im5_path) if im5_path and Path(im5_path).is_file() else dummy_im
+            im6 = Image.open(im6_path) if im6_path and Path(im6_path).is_file() else dummy_im
+            im7 = Image.open(im7_path) if im7_path and Path(im7_path).is_file() else dummy_im
+            im8 = Image.open(im8_path) if im8_path and Path(im8_path).is_file() else dummy_im
+            im9 = Image.open(im9_path) if im9_path and Path(im9_path).is_file() else dummy_im
+
+            # 各名札画像を詰め込み
+            res = get_concat_v(get_concat_h(im0, im1), get_concat_h(im2, im3))
+            res = get_concat_v(res, get_concat_h(im4, im5))
+            res = get_concat_v(res, get_concat_h(im6, im7))
+            res = get_concat_v(res, get_concat_h(im8, im9))
+
+            # 余白を追加 左右14mm 上下14mmずつ
+            # concat後の画像は横182mm 縦275mm
+            margin_x = round(res.size[0] / 182 * 14)
+            margin_y = round(res.size[1] / 275 * 11)
+            res = add_margin(res, margin_y, margin_x, margin_y, margin_x, (240, 240, 240))
+
+            # 保存
+            concat_path = str(Path(CONCAT_DIR_PATH) / '{:0=3}.png'.format(cnt))
+            res.save(concat_path)
+
+            cnt += 1
+
+
+# 横に連結
+def get_concat_h(im1, im2):
+    dst = Image.new('RGB', (im1.width + im2.width, im1.height))
+    dst.paste(im1, (0, 0))
+    dst.paste(im2, (im1.width, 0))
+    return dst
+
+
+# 縦に連結
+def get_concat_v(im1, im2):
+    dst = Image.new('RGB', (im1.width, im1.height + im2.height))
+    dst.paste(im1, (0, 0))
+    dst.paste(im2, (0, im1.height))
+    return dst
+
+
 if __name__ == '__main__':
     part_dict = load_csv(CSV_PATH)
+
     for uid, nt in part_dict.items():
         # アイコンのダウンロード
         nt.icon_path = download_icon(nt, skip=True)
         # 名札の生成
         gen_name_tag(nt)
+
+    # 生成した名札を10枚単位で以下フォーマットに合わせ詰め込み
+    # https://www.a-one.co.jp/product/search/detail.php?id=72110
+    pack_nametag(part_dict)

@@ -5,6 +5,7 @@ __pycache__/
 
 icon/
 name_tag/
+concat/
 
 # C extensions
 *.so
