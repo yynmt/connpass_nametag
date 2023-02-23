@@ -7,6 +7,13 @@ icon/
 name_tag/
 concat/
 
+data.csv
+*.otf
+tmp_bc.png
+.idea/
+*.png
+
+
 # C extensions
 *.so
 
