@@ -12,7 +12,7 @@ data.csv
 tmp_bc.png
 .idea/
 *.png
-
+chromedriver/
 
 # C extensions
 *.so
