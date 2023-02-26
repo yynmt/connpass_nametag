@@ -1,79 +1,28 @@
-import os
 import csv
-import qrcode
-import requests
-from bs4 import BeautifulSoup
 from pathlib import Path
+import qrcode
+import barcode
+from barcode.writer import ImageWriter
 from PIL import Image, ImageFont, ImageDraw
 
+from user import User
+from util_pil import add_margin, crop_square, crop_center, expand_square, concat_v, concat_h
+
+# アイコン画像保存用ディレクトリ
 ICON_DIR_PATH = str(Path(__name__).parent / 'icon')
+# 名札画像生成用ディレクトリ
 NAME_TAG_DIR_PATH = str(Path(__name__).parent / 'name_tag')
+# 名札画像
 CONCAT_DIR_PATH = str(Path(__name__).parent / 'concat')
 Path(ICON_DIR_PATH).mkdir(exist_ok=True)
 Path(NAME_TAG_DIR_PATH).mkdir(exist_ok=True)
 Path(CONCAT_DIR_PATH).mkdir(exist_ok=True)
 
 CSV_PATH = r'data.csv'
-BASE_NAME_TAG_PATH = 'base.png'
-DEFAULT_ICON_PATH = 'default_icon.png'
-DUMMY_IMG_PATH = 'base.png'
-
-
-class NameTag:
-    def __init__(self):
-        self.user_name = ''
-        self.display_name = ''
-        self.rcpt_number = -1
-        self.icon_path = ''
-
-
-def get_icon_url(user_id):
-    base_url = r'https://connpass.com/user/'
-
-    html_text = requests.get(base_url + user_id).text
-    soup = BeautifulSoup(html_text, 'html.parser')
-
-    # 以下に該当する箇所を探索
-    # <a class="image_link" href="https://connpass-tokyo.s3.amazonaws.com/user/263056/4e452935ef5542e0ab3452962f52fae8.png">
-    # <img src="https://connpass-tokyo.s3.amazonaws.com/thumbs/58/5b/585b69c12cb8be2c2d641f166a93b6f6.png" width="180" height="180" title="◤◢◤◢◤◢◤◢" alt="◤◢◤◢◤◢◤◢">
-    # </a>
-    els = soup.find_all('a', class_='image_link')
-    for el in els:
-        att = el.get('href', '')
-        if att.endswith('.png') or att.endswith('.jpg'):
-            return att
-
-
-def download_icon(nt, skip=False):
-    # アイコンがすでにダウンロード済み
-    if nt.icon_path:
-        return nt.icon_path
-
-    # アイコンがすでにダウンロード済み
-    glob_p = r'{}.*'.format(nt.user_name)
-    gr = list(Path(ICON_DIR_PATH).glob(glob_p))
-    if gr:
-        return str(gr[0])
-
-    # サーバー負荷軽減のためスッキプ
-    # デバッグ目的でこれ以降の処理をスキップ
-    if skip:
-        return ''
-
-    nt.icon_url = get_icon_url(nt.user_name)
-
-    # アイコンのURLが見つからなかった
-    if nt.icon_url is None:
-        return ''
-
-    _, ext = os.path.splitext(nt.icon_url)
-    response = requests.get(nt.icon_url)
-    img = response.content
-    icon_path = str(Path(__name__).parent / 'icon' / '{}{}'.format(nt.user_name, ext))
-    with open(icon_path, "wb") as f:
-        f.write(img)
-
-    return icon_path
+BASE_NAME_TAG_PATH = r'base.png'
+DEFAULT_ICON_PATH = r'default_icon.png'
+DUMMY_IMG_PATH = r'dummy.png'
+FONT_PATH = r'NotoSansJP-Bold.otf'
 
 
 def load_csv(csv_path):
@@ -87,130 +36,179 @@ def load_csv(csv_path):
 
         # 1行ずつ読み込み
         for row in reader:
-            nt = NameTag()
+            user = User('')
             # ユーザー名
-            nt.user_name = row[1]
+            user.user_name = row[1]
             # 表示名
-            nt.display_name = row[2]
+            user.display_name = row[2]
             # 参加ステータス
-            status_part = row[5]
+            user.status_part = row[5]
             # 受付番号
-            nt.rcpt_number = row[10]
+            user.rcpt_number = row[10]
 
             # 参加ステータスがキャンセルの参加者は除外
-            if 'キャンセル' in status_part:
+            if 'キャンセル' in user.status_part:
                 continue
 
             # リストに参加者を追加
-            tmp_part_dict[nt.user_name] = nt
+            tmp_part_dict[user.user_name] = user
 
         return tmp_part_dict
 
 
-def gen_name_tag(nt):
-    # 使用フォント
-    font = r'asago1.otf'
+def gen_name_tag(user, over_write=False):
+    # 名札保存先のパス
+    name_tag_path = Path(NAME_TAG_DIR_PATH) / '{}.png'.format(user.user_name)
 
-    # ベースを読み込み
+    # 生成済みか否かを確認
+    if Path(name_tag_path).is_file():
+        print('Already generate name tag')
+        # 上書きを許可していない場合
+        if not over_write:
+            print('Skip generate')
+            return
+
+    # ベース画像を読み込み
+    # 横:91mm 縦:55mm
     base_img = Image.open(BASE_NAME_TAG_PATH).convert('RGBA')
+    # ベース画像のサイズをすべての計算の基準とする
     base_img_size = base_img.size
 
     # 表示名
     dn_img = Image.new('RGBA', base_img_size)
     draw_dn_img = ImageDraw.Draw(dn_img)
-    # 黄色の矩形を描画
-    draw_dn_img.rectangle(
-        [(0, base_img_size[1] / 3), (base_img_size[0], base_img_size[1] * 2 / 3)],
-        fill=(255, 220, 0, 128)
-    )
 
     # 表示名のフォントサイズを計算
+    # 横:64% 縦:10%に収まる
     i = 1
-    bbox = draw_dn_img.textbbox((0, 0), nt.display_name, font=ImageFont.truetype(font, i))
-    while bbox[2] < base_img_size[0] * 0.8 and bbox[3] < base_img_size[1] / 3:
+    bbox = draw_dn_img.textbbox((0, 0), user.display_name, font=ImageFont.truetype(FONT_PATH, i))
+    while bbox[2] < base_img_size[0] * 0.64 and bbox[3] < base_img_size[1] * 0.12:
         i += 1
-        bbox = draw_dn_img.textbbox((0, 0), nt.display_name, font=ImageFont.truetype(font, i))
+        bbox = draw_dn_img.textbbox((0, 0), user.display_name, font=ImageFont.truetype(FONT_PATH, i))
 
-    # 表示名の文字入れ
+    # 表示名の文字を描画
+    # 横: 中央 縦:中央 + 20%
     draw_dn_img.text(
-        (base_img_size[0] / 2, base_img_size[1] / 2),
-        nt.display_name,
-        fill='black',
-        font=ImageFont.truetype(font, i - 1),
+        (base_img_size[0] * 0.50, base_img_size[1] * 0.70),
+        user.display_name,
+        fill=(255, 255, 255),
+        font=ImageFont.truetype(FONT_PATH, i - 1),
         anchor='mm',
     )
 
     # 受付番号
-    rn_img = Image.new('RGBA', base_img_size)
-    draw_dn_img = ImageDraw.Draw(rn_img)
+    # rn_img = Image.new('RGBA', base_img_size)
+    # draw_dn_img = ImageDraw.Draw(rn_img)
 
-    # 受付番号の文字入れ
-    draw_dn_img.text(
-        (30, base_img_size[1] - 20),
-        nt.rcpt_number,
-        fill='black',
-        font=ImageFont.truetype(font, 12),
-        anchor='mm',
-    )
+    # 受付番号の文字を描画
+    # draw_dn_img.text(
+    #     (30, base_img_size[1] - 20),
+    #     user.rcpt_number,
+    #     fill='black',
+    #     font=ImageFont.truetype(FONT_PATH, 12),
+    #     anchor='mm',
+    # )
 
     # アイコン
-    # アイコンを開いてアイコン部分を作製
-    if Path(nt.icon_path).is_file():
-        icon_img = Image.open(nt.icon_path).convert('RGBA')
+    # サイズは256x256に角r30px
+    if Path(user.icon_path).is_file():
+        # ダウンロードしたアイコン画像
+        icon_img = Image.open(user.icon_path).convert('RGBA')
     else:
+        # デフォルトのアイコン画像
         icon_img = Image.open(DEFAULT_ICON_PATH).convert('RGBA')
 
     # 余白を足して正方形に
-    icon_img = expand2square(icon_img, (255, 255, 255, 255))
-    # リサイズ
-    icon_img = icon_img.resize((200, 200))
+    # icon_img = expand2square(icon_img, (255, 255, 255, 0))
+    # クロップして正方形に
+    icon_img = crop_square(icon_img)
+    # リサイズ 18.5x18.5mm
+    icon_size = (
+        round(base_img_size[0] / 91 * 18.5),
+        round(base_img_size[0] / 91 * 18.5)
+    )
+    icon_img = icon_img.resize(icon_size)
+
+    # 四隅のピクセルから角丸加工の有無を判定
+    round_flag = True
+    # 四隅のピクセルが透明か否か
+    if icon_img.getpixel((0, 0))[3] == 0 or \
+            icon_img.getpixel((icon_img.size[0] - 1, 0)) == 0 or \
+            icon_img.getpixel((0, icon_img.size[1] - 1)) == 0 or \
+            icon_img.getpixel((icon_img.size[0]-1, icon_img.size[1]-1)) == 0:
+        round_flag = False
+
     # ベースと同じサイズに拡張
-    icon_img = add_margin(icon_img, 0, base_img_size[0] - icon_img.size[0], base_img_size[1] - icon_img.size[1], 0,
-                          (0, 0, 0, 0))
+    # 横: 中央 縦:上から40%
+    icon_img = add_margin(
+        icon_img,
+        round((base_img_size[1] - icon_img.size[1]) * 0.40),   # top
+        round((base_img_size[0] - icon_img.size[0]) * 0.50),   # right
+        round((base_img_size[1] - icon_img.size[1] - (base_img_size[1] - icon_img.size[1]) * 0.40)),   # bottom
+        round((base_img_size[0] - icon_img.size[0] - (base_img_size[0] - icon_img.size[0]) * 0.50)),   # left
+        (0, 0, 0, 0))
+
+    # ベースと同じサイズに拡張した結果サイズが1pxオーバーした場合の処理
+    if base_img_size[0] != icon_img.size[0] or base_img_size[1] != icon_img.size[1]:
+        # ベースのサイズで中央をクロップ
+        icon_img = crop_center(icon_img, base_img_size[0], base_img_size[1])
+
+    if round_flag:
+        # 角丸: 2.2mm
+        radius = round(base_img_size[0] / 91 * 2.2)
+        # 角丸用マスク
+        icon_msk_img = Image.new('L', base_img_size, 255)
+        draw_icon_msk_img = ImageDraw.Draw(icon_msk_img)
+        draw_icon_msk_img.rounded_rectangle(
+            (round((base_img_size[0] - icon_size[0]) * 0.50) + 1,
+             round((base_img_size[1] - icon_size[1]) * 0.40) + 1,
+             round((base_img_size[0] - icon_size[0]) * 0.50) + icon_size[0] - 1,
+             round((base_img_size[1] - icon_size[1]) * 0.40) + icon_size[1] - 1),
+            radius=radius,
+            fill=0,
+            outline=None,
+            width=0
+        )
 
     # QRコード
-    qr = qrcode.QRCode(box_size=2)
-    qr.add_data(nt.rcpt_number)
-    qr.make()
-    qr_img = qr.make_image()
-    qr_img = qr_img.resize((200, 200))
-    qr_pos = (base_img_size[0] - qr_img.size[0], base_img_size[1] - qr_img.size[1])
+    # qr = qrcode.QRCode(box_size=2)
+    # qr.add_data(user.rcpt_number)
+    # qr.make()
+    # qr_img = qr.make_image()
+    # qr_img = qr_img.resize((200, 200))
+    # qr_pos = (base_img_size[0] - qr_img.size[0], base_img_size[1] - qr_img.size[1])
+
+    # バーコード
+    # a = barcode.get_barcode_class('code128')
+    # b = a(user.rcpt_number, writer=ImageWriter())
+    # b.save('tmp_bc')
+    # bc_img = Image.open('tmp_bc.png')
+    # bc_img = bc_img.resize((400, 400))
+    # bc_pos = (base_img_size[0] - bc_img.size[0], base_img_size[1] - bc_img.size[1])
 
     # 表示名をアルファブレンド
     res_img = Image.alpha_composite(base_img, dn_img)
+
     # 受付番号をアルファブレンド
-    res_img = Image.alpha_composite(res_img, rn_img)
-    # アイコンをアルファブレンド
-    res_img = Image.alpha_composite(res_img, icon_img)
+    # res_img = Image.alpha_composite(res_img, rn_img)
+
+    # アイコンをコンポジット
+    if round_flag:
+        # 角丸加工が必要な場合はマスクを使用してコンポ
+        res_img = Image.composite(res_img, icon_img, icon_msk_img)
+    else:
+        # 角丸加工が不要な場合はアルファブレンド
+        res_img = Image.alpha_composite(res_img, icon_img)
+
     # QRコードを貼り付け
-    res_img.paste(qr_img, qr_pos)
+    # res_img.paste(qr_img, qr_pos)
+
+    # バーコードを貼り付け
+    # res_img.paste(bc_img, bc_pos)
 
     # 保存
-    name_tag_path = Path(NAME_TAG_DIR_PATH) / '{}.png'.format(nt.user_name)
     res_img.convert('RGB').save(name_tag_path)
-
-
-def add_margin(pil_img, top, right, bottom, left, color):
-    width, height = pil_img.size
-    new_width = width + right + left
-    new_height = height + top + bottom
-    result = Image.new(pil_img.mode, (new_width, new_height), color)
-    result.paste(pil_img, (left, top))
-    return result
-
-
-def expand2square(pil_img, background_color):
-    width, height = pil_img.size
-    if width == height:
-        return pil_img
-    elif width > height:
-        result = Image.new(pil_img.mode, (width, width), background_color)
-        result.paste(pil_img, (0, (width - height) // 2))
-        return result
-    else:
-        result = Image.new(pil_img.mode, (height, height), background_color)
-        result.paste(pil_img, ((height - width) // 2, 0))
-        return result
+    print('Generate icon: {}'.format(name_tag_path))
 
 
 def pack_nametag(part_dict):
@@ -252,49 +250,36 @@ def pack_nametag(part_dict):
             im9 = Image.open(im9_path) if im9_path and Path(im9_path).is_file() else dummy_im
 
             # 各名札画像を詰め込み
-            res = get_concat_v(get_concat_h(im0, im1), get_concat_h(im2, im3))
-            res = get_concat_v(res, get_concat_h(im4, im5))
-            res = get_concat_v(res, get_concat_h(im6, im7))
-            res = get_concat_v(res, get_concat_h(im8, im9))
+            res = concat_v(concat_h(im0, im1), concat_h(im2, im3))
+            res = concat_v(res, concat_h(im4, im5))
+            res = concat_v(res, concat_h(im6, im7))
+            res = concat_v(res, concat_h(im8, im9))
 
-            # 余白を追加 左右14mm 上下14mmずつ
+            # 余白を追加 左右14mm 上下11mmずつ -> 印刷時の余白が上下5mm発生するので4mm 1mmで計算
+            # https://www.a-one.co.jp/product/search/detail.php?id=72110
             # concat後の画像は横182mm 縦275mm
-            margin_x = round(res.size[0] / 182 * 14)
-            margin_y = round(res.size[1] / 275 * 11)
-            res = add_margin(res, margin_y, margin_x, margin_y, margin_x, (240, 240, 240))
+            margin_x = round(res.size[0] / 182 * 4)
+            margin_y = round(res.size[1] / 275 * 1)
+            res = add_margin(res, margin_y, margin_x, margin_y, margin_x, (57, 57, 57))
 
             # 保存
             concat_path = str(Path(CONCAT_DIR_PATH) / '{:0=3}.png'.format(cnt))
             res.save(concat_path)
+            print('Concat name tag: {}'.format(concat_path))
 
             cnt += 1
 
 
-# 横に連結
-def get_concat_h(im1, im2):
-    dst = Image.new('RGB', (im1.width + im2.width, im1.height))
-    dst.paste(im1, (0, 0))
-    dst.paste(im2, (im1.width, 0))
-    return dst
-
-
-# 縦に連結
-def get_concat_v(im1, im2):
-    dst = Image.new('RGB', (im1.width, im1.height + im2.height))
-    dst.paste(im1, (0, 0))
-    dst.paste(im2, (0, im1.height))
-    return dst
-
-
 if __name__ == '__main__':
+    # CSVを読み込み
     part_dict = load_csv(CSV_PATH)
 
-    for uid, nt in part_dict.items():
-        # アイコンのダウンロード
-        nt.icon_path = download_icon(nt, skip=True)
-        # 名札の生成
-        gen_name_tag(nt)
+    for uid, user in part_dict.items():
+        print(user.user_name)
+        # アイコンをダウンロード
+        user.download_icon(skip=True, over_write=False)
+        # 名札を生成
+        gen_name_tag(user, over_write=False)
 
-    # 生成した名札を10枚単位で以下フォーマットに合わせ詰め込み
-    # https://www.a-one.co.jp/product/search/detail.php?id=72110
+    # 生成した名札を10枚単位でconcat
     pack_nametag(part_dict)
