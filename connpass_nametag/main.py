@@ -211,30 +211,27 @@ def gen_name_tag(user, over_write=False):
     print('Generate icon: {}'.format(name_tag_path))
 
 
-def pack_nametag(part_dict):
-    # dictからvalueのリストにして表示名でソート
-    part_list = list(part_dict.values())
-    part_list.sort(key=lambda x: x.display_name)
+def concat_nametag(path_list, output_dir, prefix=''):
     # 書き出し画像用カウンタ
     cnt = 0
     # 余白用dummy画像
     dummy_im = Image.open(DUMMY_IMG_PATH)
 
-    it = iter(part_list)
+    it = iter(path_list)
     while True:
         im0_path = im1_path = im2_path = im3_path = im4_path = None
         im5_path = im6_path = im7_path = im8_path = im9_path = None
         try:
-            im0_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im1_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im2_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im3_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im4_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im5_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im6_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im7_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im8_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
-            im9_path = str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(next(it).user_name))
+            im0_path = next(it)
+            im1_path = next(it)
+            im2_path = next(it)
+            im3_path = next(it)
+            im4_path = next(it)
+            im5_path = next(it)
+            im6_path = next(it)
+            im7_path = next(it)
+            im8_path = next(it)
+            im9_path = next(it)
         except StopIteration:
             break
         finally:
@@ -263,7 +260,7 @@ def pack_nametag(part_dict):
             res = add_margin(res, margin_y, margin_x, margin_y, margin_x, (57, 57, 57))
 
             # 保存
-            concat_path = str(Path(CONCAT_DIR_PATH) / '{:0=3}.png'.format(cnt))
+            concat_path = str(Path(output_dir) / '{}{:0=3}.png'.format(prefix, cnt))
             res.save(concat_path)
             print('Concat name tag: {}'.format(concat_path))
 
@@ -281,5 +278,17 @@ if __name__ == '__main__':
         # 名札を生成
         gen_name_tag(user, over_write=False)
 
+    # 表示名順でソートしたリストに変換
+    part_list = list(part_dict.values())
+    part_list.sort(key=lambda x: x.display_name)
+    # 表示名順でソートした名札画像のパスリスト
+    nametag_path_list = [str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(p.user_name)) for p in part_list]
     # 生成した名札を10枚単位でconcat
-    pack_nametag(part_dict)
+    concat_nametag(nametag_path_list, CONCAT_DIR_PATH, 'hoge')
+
+    # 以下ディレクトリに名札画像(全部同一サイズ)を入れると10枚単位でconcatされる
+    # EX_NAME_TAG_DIR_PATH = r'ex_name_tag'
+    # glob_p = r'*.png'
+    # gr = list(Path(EX_NAME_TAG_DIR_PATH).glob(glob_p))
+    # gr = [str(g) for g in gr]
+    # concat_nametag(gr, CONCAT_DIR_PATH, 'ex')
