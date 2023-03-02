@@ -208,7 +208,7 @@ def gen_name_tag(user, over_write=False):
 
     # 保存
     res_img.convert('RGB').save(name_tag_path)
-    print('Generate icon: {}'.format(name_tag_path))
+    print('Generate name tag: {}'.format(name_tag_path))
 
 
 def concat_nametag(path_list, output_dir, prefix=''):
@@ -284,7 +284,7 @@ if __name__ == '__main__':
     # 表示名順でソートした名札画像のパスリスト
     nametag_path_list = [str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(p.user_name)) for p in part_list]
     # 生成した名札を10枚単位でconcat
-    concat_nametag(nametag_path_list, CONCAT_DIR_PATH, 'hoge')
+    concat_nametag(nametag_path_list, CONCAT_DIR_PATH, 'general')
 
     # 以下ディレクトリに名札画像(全部同一サイズ)を入れると10枚単位でconcatされる
     # EX_NAME_TAG_DIR_PATH = r'ex_name_tag'
