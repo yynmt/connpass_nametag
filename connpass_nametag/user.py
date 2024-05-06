@@ -13,11 +13,21 @@ DRIVER_PATH = str(Path(__name__).parent / 'chromedriver' / 'chromedriver.exe')
 
 
 class User:
+    CATEGORY = {
+        'STAFF': (195, 13, 35),
+        'PRESS': (0, 160, 233),
+        'SPONSOR': (96, 25, 134),
+    }
+    DEFAULT_CATEGORY_TEXT = ''
+    DEFAULT_CATEGORY_COLOR = (208, 208, 208)
+
     def __init__(self, connpas_id):
         self.user_name = connpas_id
         self.twitter_id = ''
         self.display_name = ''
         self.rcpt_number = -1
+
+        self.category = ''
 
         self.icon_url = ''
         self.icon_path = ''
@@ -45,7 +55,7 @@ class User:
             return
 
         # サーバー負荷軽減のため1秒待機
-        time.sleep(1000)
+        time.sleep(0)
 
         # Connpassからアイコン画像のURLを取得
         self._get_connpass_icon_url()
@@ -82,22 +92,39 @@ class User:
     def _get_connpass_icon_url(self):
         self.icon_url = ''
         base_url = r'https://connpass.com/user/'
+        profile_url = base_url + self.user_name
+        headers = {
+            'User-Agent': 'Mozilla/5.0'
+        }
+        html_text = ''
 
-        html_text = requests.get(base_url + self.user_name).text
-        soup = BeautifulSoup(html_text, 'html.parser')
+        try:
+            res = requests.get(url=profile_url, headers=headers)
+            # レスポンスコードに応じて例外発生
+            # res.raise_for_status()
+            html_text = res.text
+        except requests.exceptions.HTTPError:
+            print('HTTP response error')
 
-        # 以下に該当する箇所を探索
-        # <a class="image_link" href="https://connpass-tokyo.s3.amazonaws.com/user/263056/4e452935ef5542e0ab3452962f52fae8.png">
-        # <img src="https://connpass-tokyo.s3.amazonaws.com/thumbs/58/5b/585b69c12cb8be2c2d641f166a93b6f6.png" width="180" height="180" title="◤◢◤◢◤◢◤◢" alt="◤◢◤◢◤◢◤◢">
-        # </a>
-        els = soup.find_all('a', class_='image_link')
-        for el in els:
-            att = el.get('href', '')
-            if att.endswith('.png') or att.endswith('.jpg'):
+        try:
+            soup = BeautifulSoup(html_text, 'html.parser')
+            # 以下に該当する箇所を探索
+            # <div id="side_area">
+            #   <div class="avatar mb_20 text_center">
+            #     <img src="https://media.connpass.com/thumbs/c2/5c/c25c0d282b910de19573c6042175208d.png" width="180" height="180" title="◤◢◤◢◤◢◤◢" alt="◤◢◤◢◤◢◤◢">
+            #   </div>
+            img_el = soup.find('div', id='side_area').find('div', class_='avatar mb_20 text_center').find('img')
+            att = img_el.get('src', '')
+
+            if 'user_no_image' not in att:
                 print('Found icon: {}'.format(att))
                 self.icon_url = att
+            else:
+                print('Not found icon')
 
-        print('Not found icon')
+        except AttributeError as e:
+            print('Failed to scraping')
+            print(e)
 
     def _get_twitter_icon_url(self):
         self.icon_url = ''
