@@ -19,17 +19,29 @@ Path(NAME_TAG_DIR_PATH).mkdir(exist_ok=True)
 Path(CONCAT_DIR_PATH).mkdir(exist_ok=True)
 
 CSV_PATH = r'data.csv'
-BASE_NAME_TAG_PATH = r'base.png'
+# 105x148mm
+# BASE_NAME_TAG_PATH = r'base.png'
+# 100x148mm
+BASE_NAME_TAG_PATH = r'base_hagaki.png'
 DEFAULT_ICON_PATH = r'default_icon.png'
 DUMMY_IMG_PATH = r'dummy.png'
-FONT_PATH = r'NotoSansJP-Bold.otf'
+# FONT_PATH = r'fonts/NotoSansJP-Bold.otf'
+FONT_PATH_R = r'fonts/MPLUS1p-Regular.ttf'
+FONT_PATH_M = r'fonts/MPLUS1p-Medium.ttf'
+FONT_PATH_B = r'fonts/MPLUS1p-Bold.ttf'
+
+FONT_PATH_R = r'fonts/NotoSansJP-Regular.ttf'
+FONT_PATH_M = r'fonts/NotoSansJP-Medium.ttf'
+FONT_PATH_B = r'fonts/NotoSansJP-Bold.otf'
+
+
 
 
 def load_csv(csv_path):
     tmp_part_dict = {}
 
     # connpassからダウンロードできるcsvファイルはShift-JIS
-    with open(csv_path, encoding='cp932') as f:
+    with open(csv_path, encoding='utf-8') as f:
         reader = csv.reader(f)
         # 1行目のヘッダーをスキップ
         next(reader)
@@ -37,6 +49,8 @@ def load_csv(csv_path):
         # 1行ずつ読み込み
         for row in reader:
             user = User('')
+            # 参加枠名
+            user.category = row[0]
             # ユーザー名
             user.user_name = row[1]
             # 表示名
@@ -58,7 +72,7 @@ def load_csv(csv_path):
 
 def gen_name_tag(user, over_write=False):
     # 名札保存先のパス
-    name_tag_path = Path(NAME_TAG_DIR_PATH) / '{}.png'.format(user.user_name)
+    name_tag_path = Path(NAME_TAG_DIR_PATH) / '{}-{}.png'.format(user.user_name, user.rcpt_number)
 
     # 生成済みか否かを確認
     if Path(name_tag_path).is_file():
@@ -69,7 +83,7 @@ def gen_name_tag(user, over_write=False):
             return
 
     # ベース画像を読み込み
-    # 横:91mm 縦:55mm
+    # 横:100mm 縦:148mm
     base_img = Image.open(BASE_NAME_TAG_PATH).convert('RGBA')
     # ベース画像のサイズをすべての計算の基準とする
     base_img_size = base_img.size
@@ -79,20 +93,20 @@ def gen_name_tag(user, over_write=False):
     draw_dn_img = ImageDraw.Draw(dn_img)
 
     # 表示名のフォントサイズを計算
-    # 横:64% 縦:10%に収まる
+    # 横:80% 縦:10%に収まる
     i = 1
-    bbox = draw_dn_img.textbbox((0, 0), user.display_name, font=ImageFont.truetype(FONT_PATH, i))
-    while bbox[2] < base_img_size[0] * 0.64 and bbox[3] < base_img_size[1] * 0.12:
+    bbox = draw_dn_img.textbbox((0, 0), user.display_name, font=ImageFont.truetype(FONT_PATH_B, i))
+    while bbox[2] < base_img_size[0] * 0.80 and bbox[3] < base_img_size[1] * 0.12:
         i += 1
-        bbox = draw_dn_img.textbbox((0, 0), user.display_name, font=ImageFont.truetype(FONT_PATH, i))
+        bbox = draw_dn_img.textbbox((0, 0), user.display_name, font=ImageFont.truetype(FONT_PATH_B, i))
 
     # 表示名の文字を描画
     # 横: 中央 縦:中央 + 20%
     draw_dn_img.text(
-        (base_img_size[0] * 0.50, base_img_size[1] * 0.70),
+        (base_img_size[0] * 0.50, base_img_size[1] * 0.18),
         user.display_name,
-        fill=(255, 255, 255),
-        font=ImageFont.truetype(FONT_PATH, i - 1),
+        fill=(0, 0, 0),
+        font=ImageFont.truetype(FONT_PATH_B, i - 1),
         anchor='mm',
     )
 
@@ -122,10 +136,10 @@ def gen_name_tag(user, over_write=False):
     # icon_img = expand2square(icon_img, (255, 255, 255, 0))
     # クロップして正方形に
     icon_img = crop_square(icon_img)
-    # リサイズ 18.5x18.5mm
+    # リサイズ 54x54mm
     icon_size = (
-        round(base_img_size[0] / 91 * 18.5),
-        round(base_img_size[0] / 91 * 18.5)
+        round(base_img_size[0] / 100 * 54),
+        round(base_img_size[0] / 100 * 54)
     )
     icon_img = icon_img.resize(icon_size)
 
@@ -142,9 +156,9 @@ def gen_name_tag(user, over_write=False):
     # 横: 中央 縦:上から40%
     icon_img = add_margin(
         icon_img,
-        round((base_img_size[1] - icon_img.size[1]) * 0.40),   # top
+        round((base_img_size[1] - icon_img.size[1]) * 0.45),   # top
         round((base_img_size[0] - icon_img.size[0]) * 0.50),   # right
-        round((base_img_size[1] - icon_img.size[1] - (base_img_size[1] - icon_img.size[1]) * 0.40)),   # bottom
+        round((base_img_size[1] - icon_img.size[1] - (base_img_size[1] - icon_img.size[1]) * 0.45)),   # bottom
         round((base_img_size[0] - icon_img.size[0] - (base_img_size[0] - icon_img.size[0]) * 0.50)),   # left
         (0, 0, 0, 0))
 
@@ -155,20 +169,52 @@ def gen_name_tag(user, over_write=False):
 
     if round_flag:
         # 角丸: 2.2mm
-        radius = round(base_img_size[0] / 91 * 2.2)
+        radius = round(base_img_size[0] / 100 * 2.2)
         # 角丸用マスク
         icon_msk_img = Image.new('L', base_img_size, 255)
         draw_icon_msk_img = ImageDraw.Draw(icon_msk_img)
         draw_icon_msk_img.rounded_rectangle(
             (round((base_img_size[0] - icon_size[0]) * 0.50) + 1,
-             round((base_img_size[1] - icon_size[1]) * 0.40) + 1,
+             round((base_img_size[1] - icon_size[1]) * 0.45) + 1,
              round((base_img_size[0] - icon_size[0]) * 0.50) + icon_size[0] - 1,
-             round((base_img_size[1] - icon_size[1]) * 0.40) + icon_size[1] - 1),
+             round((base_img_size[1] - icon_size[1]) * 0.45) + icon_size[1] - 1),
             radius=radius,
             fill=0,
             outline=None,
             width=0
         )
+
+    # 参加区分
+    text_category = user.DEFAULT_CATEGORY_TEXT
+    color_category = user.DEFAULT_CATEGORY_COLOR
+    if user.category == 'スタッフ':
+        text_category = 'STAFF'
+        color_category = user.CATEGORY['STAFF']
+    elif user.category == 'プレス':
+        text_category = 'PRESS'
+        color_category = user.CATEGORY['PRESS']
+    elif user.category == 'スポンサー':
+        text_category = 'SPONSOR'
+        color_category = user.CATEGORY['SPONSOR']
+
+    category_img = Image.new('RGBA', base_img_size, (0, 0, 0, 0))
+    draw_category_img = ImageDraw.Draw(category_img)
+    draw_category_img.rectangle(
+        (0,
+         base_img_size[1] / 148 * 104,
+         base_img_size[0],
+         base_img_size[1] / 148 * 119),
+        fill=color_category,
+    )
+
+    draw_category_img.text(
+        (base_img_size[0] * 0.50, base_img_size[1] / 148 * 111),
+        text_category,
+        fill=(255, 255, 255),
+        font=ImageFont.truetype(FONT_PATH_M, 100),
+        anchor='mm',
+    )
+    # draw.rectangle((200, 100, 300, 200), fill=(0, 192, 192), outline=(255, 255, 255))
 
     # QRコード
     # qr = qrcode.QRCode(box_size=2)
@@ -179,12 +225,58 @@ def gen_name_tag(user, over_write=False):
     # qr_pos = (base_img_size[0] - qr_img.size[0], base_img_size[1] - qr_img.size[1])
 
     # バーコード
+
     # a = barcode.get_barcode_class('code128')
-    # b = a(user.rcpt_number, writer=ImageWriter())
-    # b.save('tmp_bc')
-    # bc_img = Image.open('tmp_bc.png')
-    # bc_img = bc_img.resize((400, 400))
+    # a.render(writer_options=None, text=None)
+
+    tmp_barcode = barcode.Code128(user.rcpt_number, writer=ImageWriter())
+    tmp_barcode.save(
+        'tmp_bc',
+        options={
+            'module_width': 1,
+            # 'font_size': 0 <- どこかのタイミングでバーコード下の文字の描画をフォントサイズ0で無効化できなくなった
+        },
+        text=' ',   # ここのテキストに空白を入れることで↑の対策ができる
+    )
+    code_img = Image.open('tmp_bc.png').convert('RGBA')
+    code_img = code_img.resize((600, 100))
     # bc_pos = (base_img_size[0] - bc_img.size[0], base_img_size[1] - bc_img.size[1])
+
+    code_img = add_margin(
+        code_img,
+        70,
+        0,
+        70,
+        0,
+        (0, 0, 0, 0)
+    )
+
+    draw_code_img = ImageDraw.Draw(code_img)
+    draw_code_img.text(
+        (code_img.size[0] * 0.50, 50),
+        user.user_name,
+        fill=(0, 0, 0),
+        font=ImageFont.truetype(FONT_PATH_R, 30),
+        anchor='mm',
+    )
+
+    draw_code_img.text(
+        (code_img.size[0] * 0.50, code_img.size[1] - 50),
+        user.rcpt_number,
+        fill=(0, 0, 0),
+        font=ImageFont.truetype(FONT_PATH_R, 30),
+        anchor='mm',
+    )
+
+    # 右:5mm 下:2mm 余白
+    code_img = add_margin(
+        code_img,
+        round((base_img_size[1] - code_img.size[1]) - (base_img_size[1] / 148 * 2)),  # top
+        round(base_img_size[0] / 100 * 5),  # right
+        round(base_img_size[1] / 148 * 2),  # bottom
+        round((base_img_size[0] - code_img.size[0]) - (base_img_size[0] / 100 * 5)),  # left
+        (0, 0, 0, 0)
+    )
 
     # 表示名をアルファブレンド
     res_img = Image.alpha_composite(base_img, dn_img)
@@ -200,14 +292,19 @@ def gen_name_tag(user, over_write=False):
         # 角丸加工が不要な場合はアルファブレンド
         res_img = Image.alpha_composite(res_img, icon_img)
 
+    # 参加区分を貼り付け
+    res_img = Image.alpha_composite(res_img, category_img)
+
     # QRコードを貼り付け
     # res_img.paste(qr_img, qr_pos)
 
     # バーコードを貼り付け
+    res_img = Image.alpha_composite(res_img, code_img)
     # res_img.paste(bc_img, bc_pos)
 
     # 保存
     res_img.convert('RGB').save(name_tag_path)
+    # ここで名札画像が生成されて存在しているか確認して存在していなければ例外を出すべき
     print('Generate name tag: {}'.format(name_tag_path))
 
 
@@ -272,19 +369,20 @@ if __name__ == '__main__':
     part_dict = load_csv(CSV_PATH)
 
     for uid, user in part_dict.items():
-        print(user.user_name)
         # アイコンをダウンロード
-        user.download_icon(skip=True, over_write=False)
+        user.download_icon(skip=False, over_write=True)
         # 名札を生成
-        gen_name_tag(user, over_write=False)
+        gen_name_tag(user, over_write=True)
+
+        # break
 
     # 表示名順でソートしたリストに変換
-    part_list = list(part_dict.values())
-    part_list.sort(key=lambda x: x.display_name)
+    # part_list = list(part_dict.values())
+    # part_list.sort(key=lambda x: x.display_name)
     # 表示名順でソートした名札画像のパスリスト
-    nametag_path_list = [str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(p.user_name)) for p in part_list]
+    # nametag_path_list = [str(Path(NAME_TAG_DIR_PATH) / '{}.png'.format(p.user_name)) for p in part_list]
     # 生成した名札を10枚単位でconcat
-    concat_nametag(nametag_path_list, CONCAT_DIR_PATH, 'general')
+    # concat_nametag(nametag_path_list, CONCAT_DIR_PATH, 'general')
 
     # 以下ディレクトリに名札画像(全部同一サイズ)を入れると10枚単位でconcatされる
     # EX_NAME_TAG_DIR_PATH = r'ex_name_tag'
