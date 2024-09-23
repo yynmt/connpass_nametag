@@ -6,13 +6,16 @@ __pycache__/
 icon/
 name_tag/
 concat/
+fonts/
 
-data.csv
-*.otf
+*id_rsa
+
+*.csv
 tmp_bc.png
 .idea/
 *.png
 chromedriver/
+test.py
 
 # C extensions
 *.so
