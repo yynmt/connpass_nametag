@@ -1,11 +1,12 @@
 import csv
-from pathlib import Path
 import qrcode
 import barcode
+from pathlib import Path
 from barcode.writer import ImageWriter
 from PIL import Image, ImageFont, ImageDraw
 
 from user import User
+from connpass_api import ConnpassAPI
 from util_pil import add_margin, crop_square, crop_center, expand_square, concat_v, concat_h
 
 # アイコン画像保存用ディレクトリ
@@ -19,22 +20,13 @@ Path(NAME_TAG_DIR_PATH).mkdir(exist_ok=True)
 Path(CONCAT_DIR_PATH).mkdir(exist_ok=True)
 
 CSV_PATH = r'data.csv'
-# 105x148mm
-# BASE_NAME_TAG_PATH = r'base.png'
-# 100x148mm
 BASE_NAME_TAG_PATH = r'base_hagaki.png'
 DEFAULT_ICON_PATH = r'default_icon.png'
 DUMMY_IMG_PATH = r'dummy.png'
-# FONT_PATH = r'fonts/NotoSansJP-Bold.otf'
-FONT_PATH_R = r'fonts/MPLUS1p-Regular.ttf'
-FONT_PATH_M = r'fonts/MPLUS1p-Medium.ttf'
-FONT_PATH_B = r'fonts/MPLUS1p-Bold.ttf'
 
 FONT_PATH_R = r'fonts/NotoSansJP-Regular.ttf'
 FONT_PATH_M = r'fonts/NotoSansJP-Medium.ttf'
 FONT_PATH_B = r'fonts/NotoSansJP-Bold.otf'
-
-
 
 
 def load_csv(csv_path):
@@ -64,10 +56,20 @@ def load_csv(csv_path):
             if 'キャンセル' in user.status_part:
                 continue
 
+            # 退会済ユーザーは除外
+            if '(退会ユーザー)' in user.user_name:
+                continue
+
             # リストに参加者を追加
             tmp_part_dict[user.user_name] = user
 
-        return tmp_part_dict
+    c_api = ConnpassAPI()
+    tmp_connpass_dict_list = c_api.get_user(list(tmp_part_dict.keys()))
+
+    for user in tmp_part_dict.values():
+        user.get_connpass_icon_url(tmp_connpass_dict_list)
+
+    return tmp_part_dict
 
 
 def gen_name_tag(user, over_write=False):
