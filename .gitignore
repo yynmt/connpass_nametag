@@ -5,16 +5,12 @@ __pycache__/
 
 icon/
 name_tag/
-concat/
-fonts/
+assets/
 
-*id_rsa
-
-*.csv
-tmp_bc.png
-.idea/
 *.png
-chromedriver/
+*.csv
+*id_rsa
+.idea/
 test.py
 
 # C extensions
