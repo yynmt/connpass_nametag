@@ -16,33 +16,30 @@ class User:
     DEFAULT_CATEGORY_TEXT = ''
     DEFAULT_CATEGORY_COLOR = (208, 208, 208)
 
-    def __init__(self, connpas_id):
-        self.user_name = connpas_id
+    def __init__(self, connpass_id: str):
+        self.user_name = connpass_id
         self.twitter_id = ''
         self.display_name = ''
         self.rcpt_number = -1
-
         self.category = ''
-
         self.icon_url = ''
         self.icon_path = ''
-
         self.twitter_id = ''
 
-    def download_icon(self, over_write=False, skip=False):
+    def download_icon(self, over_write=False, skip=False) -> None:
         # アイコンがすでにダウンロード済み
         if self.icon_path:
             return
 
         # ダウンロード済みのアイコンを探索
-        glob_p = r'{}.*'.format(self.user_name)
+        glob_p = f'{self.user_name}.*'
         gr = list(Path(ICON_DIR_PATH).glob(glob_p))
         if gr:
             self.icon_path = str(gr[0])
-            print('Already download icon: {}'.format(self.icon_path))
+            print(f'Already download icon: {self.icon_path}')
             # 上書きを許可していない場合
             if not over_write:
-                print('Skip download ')
+                print('Skip download')
                 return
 
         # デバッグ目的でこれ以降の処理をスキップ
@@ -58,12 +55,12 @@ class User:
             response = requests.get(self.icon_url)
             icon_img = response.content
             _, ext = os.path.splitext(self.icon_url)
-            self.icon_path = str(Path(ICON_DIR_PATH) / '{}-{}{}'.format(self.user_name, self.rcpt_number, ext))
-            print('Download icon: {} -> {}'.format(self.icon_url, self.icon_path))
+            self.icon_path = str(Path(ICON_DIR_PATH) / f'{self.user_name}-{self.rcpt_number}{ext}')
+            print(f'Download icon: {self.icon_url} -> {self.icon_path}')
             with open(self.icon_path, "wb") as f:
                 f.write(icon_img)
 
-    def get_connpass_icon_url(self, connpass_dict_list: list[dict]):
+    def get_connpass_icon_url(self, connpass_dict_list: list[dict]) -> None:
         self.icon_url = ''
 
         for c_dict in connpass_dict_list:
