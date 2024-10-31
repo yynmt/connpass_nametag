@@ -8,6 +8,7 @@ name_tag/
 assets/
 
 *.png
+*.jpg
 *.csv
 *id_rsa
 .idea/
