@@ -50,7 +50,7 @@ def load_csv(csv_path: str) -> dict[str, User]:
             # 参加ステータス
             u.status_part = row[5]
             # 受付番号
-            u.rcpt_number = row[10]
+            u.rcpt_number = row[11]
 
             # 参加ステータスがキャンセルの参加者は除外
             if 'キャンセル' in u.status_part:
