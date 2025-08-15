@@ -65,6 +65,6 @@ class User:
 
         for c_dict in connpass_dict_list:
             if c_dict['nickname'] == self.user_name:
-                if c_dict['user_image_url']:
-                    self.icon_url = c_dict['user_image_url']
+                if c_dict['image_url']:
+                    self.icon_url = c_dict['image_url']
                 break
