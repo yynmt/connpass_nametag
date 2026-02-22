@@ -31,26 +31,40 @@ FONT_PATH_B = r'assets/fonts/NotoSansJP-Bold.otf'
 
 def load_csv(csv_path: str) -> dict[str, User]:
     tmp_part_dict = {}
+    header_map_dict = {
+        'category': '参加枠名',
+        'user_name': 'ユーザー名',
+        'display_name': '表示名',
+        'status_part': '参加ステータス',
+        'rcpt_number': '受付番号',
+    }
 
     # connpassからダウンロードできるcsvファイルはUTF-8
     with open(csv_path, encoding='utf-8') as f:
         reader = csv.reader(f)
+        header_index = {}
         # 1行目のヘッダーをスキップ
-        next(reader)
+        header = next(reader)
+        for k, v in header_map_dict.items():
+            try:
+                i = header.index(v)
+                header_index[k] = i
+            except ValueError:
+                continue
 
         # 1行ずつ読み込み
         for row in reader:
             u = User('')
             # 参加枠名
-            u.category = row[0]
+            u.category = row[header_index['category']]
             # ユーザー名
-            u.user_name = row[1]
+            u.user_name = row[header_index['user_name']]
             # 表示名
-            u.display_name = row[2]
+            u.display_name = row[header_index['display_name']]
             # 参加ステータス
-            u.status_part = row[5]
+            u.status_part = row[header_index['status_part']]
             # 受付番号
-            u.rcpt_number = row[11]
+            u.rcpt_number = row[header_index['rcpt_number']]
 
             # 参加ステータスがキャンセルの参加者は除外
             if 'キャンセル' in u.status_part:
