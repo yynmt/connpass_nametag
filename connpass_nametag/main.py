@@ -312,7 +312,10 @@ def gen_name_tag(user: User, over_write=False) -> None:
     print(f'Generate name tag: {name_tag_path}')
 
     # バーコード用一時ファイルを削除
-    os.remove('tmp_bc.png')
+    try:
+        os.remove('tmp_bc.png')
+    except PermissionError as e:
+        print(e)
 
 
 if __name__ == '__main__':
