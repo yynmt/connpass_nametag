@@ -40,7 +40,7 @@ def load_csv(csv_path: str) -> dict[str, User]:
     }
 
     # connpassからダウンロードできるcsvファイルはUTF-8
-    with open(csv_path, encoding='utf-8') as f:
+    with open(csv_path, encoding='utf-8-sig') as f:
         reader = csv.reader(f)
         header_index = {}
         # 1行目のヘッダーをスキップ
