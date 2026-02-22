@@ -29,18 +29,16 @@ class User:
     def download_icon(self, over_write=False, skip=False) -> None:
         # アイコンがすでにダウンロード済み
         if self.icon_path:
-            return
+            if os.path.exists(self.icon_path):
+                print(f'Already download icon: {self.icon_path}')
+                return
 
         # ダウンロード済みのアイコンを探索
-        glob_p = f'{self.user_name}.*'
-        gr = list(Path(ICON_DIR_PATH).glob(glob_p))
-        if gr:
-            self.icon_path = str(gr[0])
-            print(f'Already download icon: {self.icon_path}')
-            # 上書きを許可していない場合
-            if not over_write:
-                print('Skip download')
-                return
+        self.get_icon_path()
+
+        if not over_write:
+            print('Skip download')
+            return
 
         # デバッグ目的でこれ以降の処理をスキップ
         if skip:
@@ -68,3 +66,13 @@ class User:
                 if c_dict['image_url']:
                     self.icon_url = c_dict['image_url']
                 break
+
+    def get_icon_path(self) -> None:
+        # ダウンロード済みのアイコンを探索
+        glob_p = f'{self.user_name}*.*'
+        print('glob_p')
+        print(glob_p)
+        gr = list(Path(ICON_DIR_PATH).glob(glob_p))
+        if gr:
+            self.icon_path = str(gr[0])
+            print(f'Found downloaded icon: {self.icon_path}')

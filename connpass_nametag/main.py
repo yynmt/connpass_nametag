@@ -322,6 +322,8 @@ if __name__ == '__main__':
     for uid, user in part_dict.items():
         # アイコンをダウンロード
         user.download_icon(skip=False, over_write=True)
+
+    for uid, user in part_dict.items():
         # 名札を生成
         gen_name_tag(user, over_write=True)
         # break
