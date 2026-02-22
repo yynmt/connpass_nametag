@@ -11,6 +11,7 @@ assets/
 *.jpg
 *.csv
 *id_rsa
+*api_key*
 .idea/
 test.py
 

@@ -2,41 +2,31 @@
 # API リファレンス
 # https://connpass.com/about/api/
 
-import json
-import paramiko
+import time
+import requests
 
-SSH_HOST = r''
-SSH_PORT = 22
-SSH_USER = r''
-SSH_KEY = r''
-SSH_PWD = r''
-RECV_SIZE = 1024 * 32
-COUNT = 10
+API_KEY_FILE = 'api_key'
+COUNT = 100
 
 
 class ConnpassAPI:
     def __init__(self):
-        # SSHの接続を確立
-        self._client = paramiko.SSHClient()
-        self._client.load_system_host_keys()
-        self._client.set_missing_host_key_policy(paramiko.WarningPolicy())
-        self._client.connect(
-            hostname=SSH_HOST,
-            port=SSH_PORT,
-            username=SSH_USER,
-            key_filename=SSH_KEY,
-            # password=SSH_PWD,
-        )
+        # connpass APIのX-API-Keyを読み込み
+        api_key = ''
+        with open(API_KEY_FILE, mode='r') as f:
+            api_key = f.read()
 
-    def __del__(self):
-        # SSH切断処理
-        self._client.close()
+        # httpリクエスト用のヘッダー
+        self.headers = {
+            'User-Agent': 'curl',
+            'X-API-Key': api_key,
+        }
 
     def search_event(self):
         """
         イベントサーチAPI
         Request URL:
-            https://connpass.com/api/v1/event/?keyword=hoge
+            https://connpass.com/api/v2/events/?keyword=hoge
         """
         pass
 
@@ -44,49 +34,36 @@ class ConnpassAPI:
         """
         ユーザーAPI
         Request URL:
-            https://connpass.com/api/v1/user/nickname=:nickname1,:nickname2
-            https://connpass.com/api/v1/user/nickname=:nickname1&nickname=:nickname2
+            https://connpass.com/api/v2/users/?nickname=nickname1,nickname2
         """
         res = []
 
         # APIをCOUNT件ずつ叩く
         for i in range(0, len(user_list), COUNT):
-            channel = self._client.get_transport().open_session(timeout=30)
+            tmp_user_list = user_list[i: i + COUNT]
+            url = 'https://connpass.com/api/v2/users/'
+            params = {
+                'nickname': ','.join(tmp_user_list),
+                'count': str(COUNT),
+            }
+
+            res_json = {}
             try:
-                tmp_user_list = user_list[i: i + COUNT]
-                api_url = [
-                    r'https://connpass.com/api/v1/user/?',
-                    'nickname=', ','.join(tmp_user_list),
-                    '&count=', str(COUNT)
-                ]
+                response = requests.get(url, headers=self.headers, params=params)
+                response.raise_for_status()
 
-                cmd = [
-                    'curl',
-                    ''.join(api_url)
-                ]
+                res_json = response.json()
+                res.extend(res_json.get('users', []))
+            except requests.exceptions.RequestException as e:
+                print(e)
 
-                stdout_data = b''
-                stderr_data = b''
-                print(' '.join(cmd))
-                channel.exec_command(' '.join(cmd))
+            if len(tmp_user_list) != res_json.get('results_returned', 0):
+                # APIに問い合わせたユーザ数と返されたユーザ数が一致しない
+                print(f'len(tmp_user_list): {len(tmp_user_list)}')
+                print(f'res_json["results_returned"]: {res_json["results_returned"]}')
 
-                while not channel.closed or channel.recv_ready() or channel.recv_stderr_ready():
-                    stdout_data += channel.recv(RECV_SIZE)
-                    stderr_data += channel.recv_stderr(RECV_SIZE)
-
-                code = channel.recv_exit_status()
-                print(stdout_data.decode())
-
-                # 標準出力をdictにして取り出し
-                data = json.loads(stdout_data.decode())
-                if len(tmp_user_list) != data['results_returned']:
-                    # APIに問い合わせたユーザ数と返されたユーザ数が一致しない
-                    print(f'len(tmp_user_list): {len(tmp_user_list)}')
-                    print(f'data["results_returned"]: {data["results_returned"]}')
-
-                res.extend(data.get('users'))
-            finally:
-                channel.close()
+            # APIリクエスト制限のため1秒待機
+            time.sleep(1)
 
         return res
 
@@ -94,7 +71,7 @@ class ConnpassAPI:
         """
         ユーザー所属グループAPI
         Request URL:
-            https://connpass.com/api/v1/user/:nickname/group/
+            https://connpass.com/api/v2/users/{nickname}/groups/
         """
         pass
 
@@ -102,6 +79,6 @@ class ConnpassAPI:
         """
         ユーザー参加イベントAPI
         Request URL:
-            https://connpass.com/api/v1/user/:nickname/attended_event/
+            https://connpass.com/api/v2/users/{nickname}/attended_events/
         """
         pass
