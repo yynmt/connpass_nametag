@@ -10,6 +10,7 @@ assets/
 *.png
 *.jpg
 *.csv
+*.zip
 *id_rsa
 *api_key*
 .idea/
